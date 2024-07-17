@@ -29,8 +29,6 @@ namespace TimeToGo
                 if (line.opcode == OpCodes.Ldloca_S && line.operand is LocalBuilder localBuilder && localBuilder.LocalType.GetFriendlyName() == "Game.Simulation.TransportCarAISystem/TransportCarTickJob")
                 {
                     line.operand = newLocal;
-                    Debug.WriteLine(localBuilder.LocalType.GetFriendlyName());
-                    Debug.WriteLine(line);
                 }
 
                 if (line.opcode == OpCodes.Newobj && line.operand is ConstructorInfo constructorInfo && constructorInfo.DeclaringType.GetFriendlyName() == "Game.Simulation.TransportCarAISystem/TransportCarTickJob")

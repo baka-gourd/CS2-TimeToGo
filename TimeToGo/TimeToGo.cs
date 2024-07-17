@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Reflection;
 
 using Colossal.IO.AssetDatabase;
 using Colossal.Logging;
@@ -12,9 +14,11 @@ using HarmonyLib;
 
 namespace TimeToGo
 {
-    public class Mod : IMod
+    public class TimeToGo : IMod
     {
-        public static ILog log = LogManager.GetLogger($"{nameof(TimeToGo)}.{nameof(Mod)}").SetShowsErrorsInUI(false);
+        public static ConcurrentDictionary<int, uint> TimerDict { get; private set; } = new();
+
+        public static ILog log = LogManager.GetLogger($"{nameof(TimeToGo)}.{nameof(TimeToGo)}").SetShowsErrorsInUI(false);
         private Setting m_Setting;
 
         public void OnLoad(UpdateSystem updateSystem)
@@ -44,6 +48,17 @@ namespace TimeToGo
                 m_Setting.UnregisterInOptionsUI();
                 m_Setting = null;
             }
+        }
+
+        public static bool ShouldForceBoarding(int index, uint now)
+        {
+            if (TimerDict.TryGetValue(index, out var start))
+            {
+                Debug.WriteLine("force start");
+                return now - start > 20;
+            }
+
+            return false;
         }
     }
 }
