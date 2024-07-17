@@ -124,6 +124,7 @@ namespace TimeToGo
                     passengers = bufferAccessor2[index];
                 }
 
+                
                 VehicleUtils.CheckUnspawned(unfilteredChunkIndex, entity, currentLane, isUnspawned, m_CommandBuffer);
                 
                 Tick(unfilteredChunkIndex, entity, owner, pathInformation, prefabRef, currentRoute, navigationLanes, passengers, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, ref odometer);
@@ -157,6 +158,8 @@ namespace TimeToGo
           ref Target target,
           ref Odometer odometer)
         {
+            
+
             PublicTransportVehicleData componentData1;
 
             var component1 = m_PublicTransportVehicleData.TryGetComponent(prefabRef.m_Prefab, out componentData1);

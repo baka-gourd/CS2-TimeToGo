@@ -23,7 +23,6 @@ namespace TimeToGo
 
             var newLocal = generator.DeclareLocal(typeof(TransportCarTickJobWithTimer), true);
             newLocal.SetLocalSymInfo("jobHandle");
-            // var newLocalIndex = newLocal.LocalIndex;
 
             foreach (var line in codes)
             {
@@ -47,6 +46,12 @@ namespace TimeToGo
                 if (line.opcode == OpCodes.Stfld && line.operand is FieldInfo fieldInfo && fieldInfo.DeclaringType.GetFriendlyName() == "Game.Simulation.TransportCarAISystem/TransportCarTickJob")
                 {
                     line.operand = typeof(TransportCarTickJobWithTimer).GetField(fieldInfo.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                }
+
+                if (line.opcode == OpCodes.Ldloc_3)
+                {
+                    line.opcode = OpCodes.Ldloc_S;
+                    line.operand = newLocal;
                 }
 
                 if (line.opcode == OpCodes.Call && line.operand is MethodInfo { IsGenericMethod: true } methodInfo && methodInfo.GetGenericMethodDefinition() == typeof(JobChunkExtensions).GetMethod("ScheduleParallel"))
