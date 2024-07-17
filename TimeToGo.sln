@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35017.193
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeToGo", "TimeToGo\TimeToGo.csproj", "{17006C42-0110-4A76-B84D-7DC6F8139A65}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{17006C42-0110-4A76-B84D-7DC6F8139A65}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17006C42-0110-4A76-B84D-7DC6F8139A65}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17006C42-0110-4A76-B84D-7DC6F8139A65}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17006C42-0110-4A76-B84D-7DC6F8139A65}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {712B3AB2-203B-4AF4-8DAA-2EF34F32FFB8}
+	EndGlobalSection
+EndGlobal
