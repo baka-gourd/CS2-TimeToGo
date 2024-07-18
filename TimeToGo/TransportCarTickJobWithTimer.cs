@@ -10,8 +10,6 @@ using Game.Prefabs;
 using Game.Routes;
 using Game.Simulation;
 using Game.Vehicles;
-
-using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
@@ -74,6 +72,7 @@ namespace TimeToGo
         public EntityCommandBuffer.ParallelWriter m_CommandBuffer;
         public NativeQueue<SetupQueueItem>.ParallelWriter m_PathfindQueue;
         public TransportBoardingHelpers.BoardingData.Concurrent m_BoardingData;
+        public ComponentTypeHandle<TransportVehicleStopTimer> m_Timer;
 
         public void Execute(
           in ArchetypeChunk chunk,
@@ -96,7 +95,9 @@ namespace TimeToGo
             var bufferAccessor1 = chunk.GetBufferAccessor(ref m_CarNavigationLaneType);
             var bufferAccessor2 = chunk.GetBufferAccessor(ref m_PassengerType);
             var bufferAccessor3 = chunk.GetBufferAccessor(ref m_ServiceDispatchType);
+            var timers = chunk.GetNativeArray(ref m_Timer);
             var isUnspawned = chunk.Has(ref m_UnspawnedType);
+            var hasTimer = chunk.Has(ref m_Timer);
             for (var index = 0; index < nativeArray1.Length; ++index)
             {
                 var entity = nativeArray1[index];
@@ -118,16 +119,21 @@ namespace TimeToGo
                     cargoTransport = nativeArray7[index];
                 var publicTransport = new Game.Vehicles.PublicTransport();
                 var passengers = new DynamicBuffer<Passenger>();
+                var timer = new TransportVehicleStopTimer();
                 if (nativeArray8.Length != 0)
                 {
                     publicTransport = nativeArray8[index];
                     passengers = bufferAccessor2[index];
                 }
 
-                
+                if (hasTimer)
+                {
+                    timer = timers[index];
+                }
+
                 VehicleUtils.CheckUnspawned(unfilteredChunkIndex, entity, currentLane, isUnspawned, m_CommandBuffer);
-                
-                Tick(unfilteredChunkIndex, entity, owner, pathInformation, prefabRef, currentRoute, navigationLanes, passengers, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, ref odometer);
+
+                Tick(unfilteredChunkIndex, entity, owner, pathInformation, prefabRef, currentRoute, navigationLanes, passengers, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, ref odometer, ref timer, hasTimer);
                 nativeArray9[index] = car;
                 nativeArray6[index] = currentLane;
                 nativeArray11[index] = pathOwner;
@@ -156,9 +162,11 @@ namespace TimeToGo
           ref CarCurrentLane currentLane,
           ref PathOwner pathOwner,
           ref Target target,
-          ref Odometer odometer)
+          ref Odometer odometer,
+          ref TransportVehicleStopTimer timer,
+          bool hasTimer)
         {
-            
+
 
             PublicTransportVehicleData componentData1;
 
@@ -168,13 +176,13 @@ namespace TimeToGo
             var component2 = m_CargoTransportVehicleData.TryGetComponent(prefabRef.m_Prefab, out componentData2);
             if (VehicleUtils.ResetUpdatedPath(ref pathOwner))
             {
-                
+
                 ResetPath(jobIndex, vehicleEntity, pathInformation, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, component1);
                 DynamicBuffer<LoadingResources> bufferData;
 
                 if (((publicTransport.m_State & PublicTransportFlags.DummyTraffic) != (PublicTransportFlags)0 || (cargoTransport.m_State & CargoTransportFlags.DummyTraffic) != (CargoTransportFlags)0) && m_LoadingResources.TryGetBuffer(vehicleEntity, out bufferData))
                 {
-                    
+
                     CheckDummyResources(jobIndex, vehicleEntity, prefabRef, bufferData);
                 }
             }
@@ -200,11 +208,11 @@ namespace TimeToGo
                 cargoTransport.m_State |= CargoTransportFlags.RequiresMaintenance;
             if (flag1)
             {
-                
+
                 CheckServiceDispatches(vehicleEntity, serviceDispatches, flag2, ref cargoTransport, ref publicTransport, ref pathOwner);
                 if (serviceDispatches.Length <= math.select(0, 1, flag2) && (cargoTransport.m_State & (CargoTransportFlags.RequiresMaintenance | CargoTransportFlags.DummyTraffic | CargoTransportFlags.Disabled)) == (CargoTransportFlags)0 && (publicTransport.m_State & (PublicTransportFlags.RequiresMaintenance | PublicTransportFlags.DummyTraffic | PublicTransportFlags.Disabled)) == (PublicTransportFlags)0)
                 {
-                    
+
                     RequestTargetIfNeeded(jobIndex, vehicleEntity, ref publicTransport, ref cargoTransport);
                 }
             }
@@ -221,8 +229,8 @@ namespace TimeToGo
                 if ((cargoTransport.m_State & CargoTransportFlags.Boarding) != (CargoTransportFlags)0 || (publicTransport.m_State & PublicTransportFlags.Boarding) != (PublicTransportFlags)0)
                 {
                     flag3 = true;
-                    
-                    StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, true);
+
+                    StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, true, ref timer, hasTimer);
                 }
                 if (VehicleUtils.IsStuck(pathOwner) || (cargoTransport.m_State & (CargoTransportFlags.Returning | CargoTransportFlags.DummyTraffic)) != (CargoTransportFlags)0 || (publicTransport.m_State & (PublicTransportFlags.Returning | PublicTransportFlags.DummyTraffic)) != (PublicTransportFlags)0)
                 {
@@ -230,7 +238,7 @@ namespace TimeToGo
                     m_CommandBuffer.AddComponent(jobIndex, vehicleEntity, new Deleted());
                     return;
                 }
-                
+
                 ReturnToDepot(jobIndex, vehicleEntity, currentRoute, owner, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref pathOwner, ref target);
             }
             else if (VehicleUtils.PathEndReached(currentLane))
@@ -239,11 +247,11 @@ namespace TimeToGo
                 {
                     if ((cargoTransport.m_State & CargoTransportFlags.Boarding) != (CargoTransportFlags)0 || (publicTransport.m_State & PublicTransportFlags.Boarding) != (PublicTransportFlags)0)
                     {
-                        
-                        if (StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, false))
+
+                        if (StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, false, ref timer, hasTimer))
                         {
                             flag3 = true;
-                            
+
                             if (!SelectNextDispatch(jobIndex, vehicleEntity, currentRoute, navigationLanes, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, component1))
                             {
 
@@ -254,9 +262,9 @@ namespace TimeToGo
                     }
                     else
                     {
-                        
-                        
-                        if ((!passengers.IsCreated || passengers.Length <= 0 || !StartBoarding(jobIndex, vehicleEntity, currentRoute, prefabRef, ref cargoTransport, ref publicTransport, ref target, component2)) && !SelectNextDispatch(jobIndex, vehicleEntity, currentRoute, navigationLanes, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, component1))
+
+
+                        if ((!passengers.IsCreated || passengers.Length <= 0 || !StartBoarding(jobIndex, vehicleEntity, currentRoute, prefabRef, ref cargoTransport, ref publicTransport, ref target, component2, ref timer, hasTimer)) && !SelectNextDispatch(jobIndex, vehicleEntity, currentRoute, navigationLanes, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, component1))
                         {
 
                             m_CommandBuffer.AddComponent(jobIndex, vehicleEntity, new Deleted());
@@ -266,27 +274,27 @@ namespace TimeToGo
                 }
                 else if ((cargoTransport.m_State & CargoTransportFlags.Boarding) != (CargoTransportFlags)0 || (publicTransport.m_State & PublicTransportFlags.Boarding) != (PublicTransportFlags)0)
                 {
-                    
-                    if (StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, false))
+
+                    if (StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, false, ref timer, hasTimer))
                     {
                         flag3 = true;
                         if ((publicTransport.m_State & (PublicTransportFlags.Evacuating | PublicTransportFlags.PrisonerTransport)) != (PublicTransportFlags)0)
                         {
-                            
+
                             if (!SelectNextDispatch(jobIndex, vehicleEntity, currentRoute, navigationLanes, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, component1))
                             {
-                                
+
                                 ReturnToDepot(jobIndex, vehicleEntity, currentRoute, owner, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref pathOwner, ref target);
                             }
                         }
                         else if ((cargoTransport.m_State & CargoTransportFlags.EnRoute) == (CargoTransportFlags)0 && (publicTransport.m_State & PublicTransportFlags.EnRoute) == (PublicTransportFlags)0)
                         {
-                            
+
                             ReturnToDepot(jobIndex, vehicleEntity, currentRoute, owner, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref pathOwner, ref target);
                         }
                         else
                         {
-                            
+
                             SetNextWaypointTarget(currentRoute, ref pathOwner, ref target);
                         }
                     }
@@ -297,31 +305,31 @@ namespace TimeToGo
 
                     if ((publicTransport.m_State & (PublicTransportFlags.Evacuating | PublicTransportFlags.PrisonerTransport)) == (PublicTransportFlags)0 && (!m_RouteWaypoints.HasBuffer(currentRoute.m_Route) || !m_WaypointData.HasComponent(target.m_Target)))
                     {
-                        
+
                         ReturnToDepot(jobIndex, vehicleEntity, currentRoute, owner, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref pathOwner, ref target);
                     }
                     else
                     {
-                        
-                        if (!StartBoarding(jobIndex, vehicleEntity, currentRoute, prefabRef, ref cargoTransport, ref publicTransport, ref target, component2))
+
+                        if (!StartBoarding(jobIndex, vehicleEntity, currentRoute, prefabRef, ref cargoTransport, ref publicTransport, ref target, component2, ref timer, hasTimer))
                         {
                             if ((publicTransport.m_State & (PublicTransportFlags.Evacuating | PublicTransportFlags.PrisonerTransport)) != (PublicTransportFlags)0)
                             {
-                                
+
                                 if (!SelectNextDispatch(jobIndex, vehicleEntity, currentRoute, navigationLanes, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, component1))
                                 {
-                                    
+
                                     ReturnToDepot(jobIndex, vehicleEntity, currentRoute, owner, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref pathOwner, ref target);
                                 }
                             }
                             else if ((cargoTransport.m_State & CargoTransportFlags.EnRoute) == (CargoTransportFlags)0 && (publicTransport.m_State & PublicTransportFlags.EnRoute) == (PublicTransportFlags)0)
                             {
-                                
+
                                 ReturnToDepot(jobIndex, vehicleEntity, currentRoute, owner, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref pathOwner, ref target);
                             }
                             else
                             {
-                                
+
                                 SetNextWaypointTarget(currentRoute, ref pathOwner, ref target);
                             }
                         }
@@ -331,8 +339,8 @@ namespace TimeToGo
             else if ((cargoTransport.m_State & CargoTransportFlags.Boarding) != (CargoTransportFlags)0 || (publicTransport.m_State & PublicTransportFlags.Boarding) != (PublicTransportFlags)0)
             {
                 flag3 = true;
-                
-                StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, true);
+
+                StopBoarding(vehicleEntity, currentRoute, passengers, ref cargoTransport, ref publicTransport, ref target, ref odometer, true, ref timer, hasTimer);
             }
             publicTransport.m_State &= ~(PublicTransportFlags.StopLeft | PublicTransportFlags.StopRight);
             var skipWaypoint = Entity.Null;
@@ -340,7 +348,7 @@ namespace TimeToGo
             {
                 if (!flag3)
                 {
-                    
+
                     UpdateStop(navigationLanes, ref currentLane, ref publicTransport, ref target);
                 }
             }
@@ -348,23 +356,23 @@ namespace TimeToGo
             {
                 if (!passengers.IsCreated || passengers.Length == 0)
                 {
-                    
+
                     SelectNextDispatch(jobIndex, vehicleEntity, currentRoute, navigationLanes, serviceDispatches, ref cargoTransport, ref publicTransport, ref car, ref currentLane, ref pathOwner, ref target, component1);
                 }
             }
             else if ((cargoTransport.m_State & CargoTransportFlags.Arriving) != (CargoTransportFlags)0 || (publicTransport.m_State & PublicTransportFlags.Arriving) != (PublicTransportFlags)0)
             {
-                
+
                 UpdateStop(navigationLanes, ref currentLane, ref publicTransport, ref target);
             }
             else
             {
-                
+
                 CheckNavigationLanes(vehicleEntity, currentRoute, navigationLanes, ref cargoTransport, ref publicTransport, ref currentLane, ref pathOwner, ref target, out skipWaypoint);
             }
             cargoTransport.m_State &= ~CargoTransportFlags.Testing;
             publicTransport.m_State &= ~PublicTransportFlags.Testing;
-            
+
             FindPathIfNeeded(vehicleEntity, prefabRef, skipWaypoint, ref currentLane, ref cargoTransport, ref publicTransport, ref pathOwner, ref target);
         }
 
@@ -509,7 +517,7 @@ namespace TimeToGo
                 if ((pathOwner.m_State & (PathFlags.Pending | PathFlags.Failed | PathFlags.Obsolete)) != (PathFlags)0)
                     return;
                 skipWaypoint = target.m_Target;
-                
+
                 SetNextWaypointTarget(currentRoute, ref pathOwner, ref target);
                 if (navigationLanes.Length != 0)
                 {
@@ -536,7 +544,7 @@ namespace TimeToGo
                 {
 
                     var connected = m_ConnectedData[target.m_Target];
-                    
+
                     if (GetTransportStationFromStop(connected.m_Connected) == Entity.Null && (cargoTransport.m_State & (CargoTransportFlags.RequiresMaintenance | CargoTransportFlags.AbandonRoute)) == (CargoTransportFlags)0 && (publicTransport.m_State & (PublicTransportFlags.RequiresMaintenance | PublicTransportFlags.AbandonRoute)) == (PublicTransportFlags)0)
                     {
 
@@ -549,7 +557,7 @@ namespace TimeToGo
                                 if ((pathOwner.m_State & (PathFlags.Pending | PathFlags.Failed | PathFlags.Obsolete)) != (PathFlags)0)
                                     return;
                                 skipWaypoint = target.m_Target;
-                                
+
                                 SetNextWaypointTarget(currentRoute, ref pathOwner, ref target);
                                 if (navigationLanes.Length != 0)
                                 {
@@ -1133,7 +1141,9 @@ namespace TimeToGo
           ref Game.Vehicles.CargoTransport cargoTransport,
           ref Game.Vehicles.PublicTransport publicTransport,
           ref Target target,
-          bool isCargoVehicle)
+          bool isCargoVehicle,
+          ref TransportVehicleStopTimer timer,
+          bool hasTimer)
         {
             if ((publicTransport.m_State & (PublicTransportFlags.Evacuating | PublicTransportFlags.PrisonerTransport)) != (PublicTransportFlags)0)
             {
@@ -1143,6 +1153,12 @@ namespace TimeToGo
                 return true;
             }
 
+            if (hasTimer)
+            {
+                timer.StartFrame = m_SimulationFrameIndex;
+                TimeToGo.Logger.Info($"Boarding: frame({timer.StartFrame})");
+            }
+
             if (m_ConnectedData.HasComponent(target.m_Target))
             {
 
@@ -1150,7 +1166,7 @@ namespace TimeToGo
 
                 if (m_BoardingVehicleData.HasComponent(connected.m_Connected))
                 {
-                    
+
                     var transportStationFromStop = GetTransportStationFromStop(connected.m_Connected);
                     var nextStorageCompany = Entity.Null;
                     var refuel = false;
@@ -1180,7 +1196,7 @@ namespace TimeToGo
                         publicTransport.m_State |= PublicTransportFlags.EnRoute;
                         if (isCargoVehicle)
                         {
-                            
+
                             nextStorageCompany = GetNextStorageCompany(currentRoute.m_Route, target.m_Target);
                         }
                     }
@@ -1189,7 +1205,7 @@ namespace TimeToGo
                     var storageCompanyFromStop = Entity.Null;
                     if (isCargoVehicle)
                     {
-                        
+
                         storageCompanyFromStop = GetStorageCompanyFromStop(connected.m_Connected);
                     }
 
@@ -1222,12 +1238,23 @@ namespace TimeToGo
           ref Game.Vehicles.PublicTransport publicTransport,
           ref Target target,
           ref Odometer odometer,
-          bool forcedStop)
+          bool forcedStop,
+          ref TransportVehicleStopTimer timer,
+          bool hasTimer)
         {
             var flag = false;
             Connected componentData1;
             BoardingVehicle componentData2;
 
+            TimeToGo.Logger.Info($"try stop Boarding: frame({m_SimulationFrameIndex})");
+            if (hasTimer)
+            {
+                if (timer.ShouldStop(m_SimulationFrameIndex))
+                {
+                    forcedStop = true;
+                    timer.StartFrame = 0;
+                }
+            }
 
             if (m_ConnectedData.TryGetComponent(target.m_Target, out componentData1) && m_BoardingVehicleData.TryGetComponent(componentData1.m_Connected, out componentData2))
                 flag = componentData2.m_Vehicle == vehicleEntity;
@@ -1257,11 +1284,11 @@ namespace TimeToGo
                 var nextStorageCompany = Entity.Null;
                 if (!forcedStop && (cargoTransport.m_State & CargoTransportFlags.Boarding) != (CargoTransportFlags)0)
                 {
-                    
+
                     storageCompanyFromStop = GetStorageCompanyFromStop(componentData1.m_Connected);
                     if ((cargoTransport.m_State & CargoTransportFlags.EnRoute) != (CargoTransportFlags)0)
                     {
-                        
+
                         nextStorageCompany = GetNextStorageCompany(currentRoute.m_Route, target.m_Target);
                     }
                 }

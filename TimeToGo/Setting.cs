@@ -28,12 +28,12 @@ namespace TimeToGo
         }
 
         [SettingsUISection(kSection, kButtonGroup)]
-        public bool Button { set { TimeToGo.log.Info("Button clicked"); } }
+        public bool Button { set { TimeToGo.Logger.Info("Button clicked"); } }
 
         [SettingsUIButton]
         [SettingsUIConfirmation]
         [SettingsUISection(kSection, kButtonGroup)]
-        public bool ButtonWithConfirmation { set { TimeToGo.log.Info("ButtonWithConfirmation clicked"); } }
+        public bool ButtonWithConfirmation { set { TimeToGo.Logger.Info("ButtonWithConfirmation clicked"); } }
 
         [SettingsUISection(kSection, kToggleGroup)]
         public bool Toggle { get; set; }
