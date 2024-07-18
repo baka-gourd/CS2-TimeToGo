@@ -14,6 +14,7 @@ namespace TimeToGo
             if (StartFrame == 0) return false;
             if (now - StartFrame > 1)
             {
+                TimeToGo.Logger.Info("Force stop");
                 return true;
             }
             return false;

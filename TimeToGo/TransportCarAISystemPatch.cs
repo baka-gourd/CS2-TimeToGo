@@ -284,7 +284,8 @@ namespace TimeToGo
                 m_CommandBuffer = ((EndFrameBarrier)endFrameBarrier).CreateCommandBuffer().AsParallelWriter(),
                 m_PathfindQueue = ((PathfindSetupSystem)pathFindSetupSystem).GetQueue(system, 64).AsParallelWriter(),
                 m_BoardingData = boardingData.ToConcurrent(),
-                m_Timer = TransportCarAISystemPatchHelper.ExternalInjectTypeHandle.m_Timer
+                m_Timer = TransportCarAISystemPatchHelper.ExternalInjectTypeHandle.m_Timer,
+                m_TimerData = TransportCarAISystemPatchHelper.ExternalInjectTypeHandle.m_TimerLookup
             };
             var handle = job.ScheduleParallel((EntityQuery)query, (JobHandle)dep);
             var inputDeps = boardingData.ScheduleBoarding(system,
