@@ -1,22 +1,28 @@
 ﻿using Colossal.Serialization.Entities;
-
+using Unity.Burst;
 using Unity.Entities;
 
 namespace TimeToGo
 {
     public struct TransportVehicleStopTimer : IComponentData, ISerializable
     {
+        public static readonly SharedStatic<uint> Interval = SharedStatic<uint>.GetOrCreate<TransportVehicleStopTimer>();
+
         public uint StartFrame { get; set; }
 
         public bool ShouldStop(uint now)
         {
-            TimeToGo.Logger.Info($"now is:{now} start is:{StartFrame}");
             if (StartFrame == 0) return false;
-            if (now - StartFrame > 1)
+            if (StartFrame > now)
             {
-                TimeToGo.Logger.Info("Force stop");
                 return true;
             }
+
+            if (now - StartFrame > Interval.Data)
+            {
+                return true;
+            }
+
             return false;
         }
 

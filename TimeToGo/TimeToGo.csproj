@@ -5,6 +5,7 @@
 		<TargetFramework>net472</TargetFramework>
 		<Configurations>Debug;Release</Configurations>
     <LangVersion>9</LangVersion>
+		<Version>0.0.5</Version>
 		
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
 		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
@@ -19,6 +20,9 @@
 			<Private>false</Private>
 		</Reference>
     <Reference Include="Colossal.Mathematics">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Colossal.PSI.Common">
       <Private>false</Private>
     </Reference>
 		<Reference Include="Colossal.Core">
@@ -78,6 +82,10 @@
 
 	<ItemGroup>
 	  <PackageReference Include="Lib.Harmony" Version="2.2.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="lang\" />
 	</ItemGroup>
 
 </Project>

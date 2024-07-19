@@ -9,6 +9,7 @@ using Game.Prefabs;
 using Game.Routes;
 using Game.Simulation;
 using Game.Vehicles;
+using Unity.Burst;
 using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
@@ -16,6 +17,7 @@ using Unity.Mathematics;
 
 namespace TimeToGo
 {
+    [BurstCompile]
     public struct TransportCarTickJobWithTimer : IJobChunk
     {
         public EntityTypeHandle m_EntityType;
@@ -1242,7 +1244,6 @@ namespace TimeToGo
             if (hasTimer)
             {
                 m_TimerData.GetRefRW(vehicleEntity).ValueRW.StartFrame = m_SimulationFrameIndex;
-                TimeToGo.Logger.Info($"Boarding: frame({m_TimerData.GetRefRW(vehicleEntity).ValueRW.StartFrame})");
             }
 
             if (m_ConnectedData.HasComponent(target.m_Target))
@@ -1336,7 +1337,6 @@ namespace TimeToGo
             Connected componentData1;
             BoardingVehicle componentData2;
 
-            TimeToGo.Logger.Info($"try stop Boarding: frame({m_SimulationFrameIndex})");
             if (hasTimer)
             {
                 if (m_TimerData.GetRefRW(vehicleEntity).ValueRW.ShouldStop(m_SimulationFrameIndex))
