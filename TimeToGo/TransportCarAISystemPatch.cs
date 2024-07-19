@@ -19,6 +19,7 @@ using Game.Objects;
 using Game.Prefabs;
 using Game.Pathfind;
 using Game.Routes;
+using Game.Tools;
 using CargoTransport = Game.Vehicles.CargoTransport;
 using Color = Game.Routes.Color;
 using PublicTransport = Game.Vehicles.PublicTransport;
@@ -70,6 +71,7 @@ namespace TimeToGo
                 {
                     continue;
                 }
+
                 entityManager.AddComponent<TransportVehicleStopTimer>(entity);
             }
 
@@ -300,11 +302,9 @@ namespace TimeToGo
         }
     }
 
-    [HarmonyPatch(typeof(TransportCarAISystem))]
-    [HarmonyPatch("OnCreate")]
     public class TransportCarAISystemPatchHelper
     {
-        public static bool Init { get; set; } = false;
+        public static bool Init { get; set; }
         public static InjectTypeHandle ExternalInjectTypeHandle;
         public static EntityQuery Query;
 
@@ -321,33 +321,12 @@ namespace TimeToGo
             }
         }
 
-        //static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
-        //{
-        //    var codes = new List<CodeInstruction>(instructions);
-        //    var targetMethod = typeof(GameSystemBase).GetMethod("OnCreate", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        //    var index = codes.FindIndex(c =>
-        //        c.opcode == OpCodes.Call && c.operand is MethodInfo methodInfo && methodInfo == targetMethod);
-
-        //    if (index >= 0)
-        //    {
-        //        codes.InsertRange(index + 1, new[]{ new CodeInstruction(OpCodes.Ldarg_0) ,new CodeInstruction(OpCodes.Call,
-        //            AccessTools.Method(typeof(TransportCarAISystemPatchHelper), nameof(InitHandle)))});
-        //        //codes.Take(index)
-        //        //    .AddItem(new CodeInstruction(OpCodes.Ldarg_0))
-        //        //    .AddItem(new CodeInstruction(OpCodes.Call,
-        //        //        AccessTools.Method(typeof(TransportCarAISystemPatchHelper), nameof(InitHandle))))
-        //        //    .AddItem(new CodeInstruction(OpCodes.Ret))
-        //        //    .ToArray();
-        //        return codes;
-        //    }
-
-        //    return codes;
-        //}
-
         public static void InitHandle(TransportCarAISystem system)
         {
             Query = system.GetEntityQuery(new EntityQueryBuilder(Allocator.Temp)
-                .WithAllRW<Game.Vehicles.PublicTransport>().WithAbsent<TransportVehicleStopTimer>());
+                .WithAllRW<PublicTransport, CarCurrentLane>()
+                .WithAbsent<TransportVehicleStopTimer>()
+                .WithNone<Deleted, Temp, TripSource, OutOfControl>());
             ExternalInjectTypeHandle.__AssignHandles(ref system.CheckedStateRef);
         }
     }
